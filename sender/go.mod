@@ -2,7 +2,10 @@ module sender
 
 go 1.19
 
-require github.com/schollz/progressbar/v3 v3.11.0
+require (
+	github.com/gorilla/websocket v1.5.0
+	github.com/schollz/progressbar/v3 v3.11.0
+)
 
 require (
 	github.com/mattn/go-runewidth v0.0.13 // indirect

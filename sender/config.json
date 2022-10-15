@@ -1,5 +1,9 @@
 {
-    "server": "http://127.0.0.1:26543",
+    "server": "ws://127.0.0.1:26543",
     "token": "123456",
-    "path": "/xx/xx"
+    "path": "/xx/xxx",
+    "exclude": [
+        "/image",
+        "/test"
+    ]
 }

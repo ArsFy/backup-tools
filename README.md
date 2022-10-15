@@ -29,7 +29,11 @@ go build .
 {
     "server": "http://127.0.0.1:26543", // Recipient 
     "token": "123456", // Token (consistent with recipient)
-    "path": "/xxx/xxx" // Backup path
+    "path": "/xxx/xxx", // Backup path
+    "exclude": [
+        "/image",
+        "/test"
+    ]  // Exclude Path (relative position)
 }
 ```
 

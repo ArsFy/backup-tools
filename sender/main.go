@@ -5,24 +5,25 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
-	"mime/multipart"
-	"net/http"
+	"log"
 	"net/url"
 	"os"
 	"path"
 	"strings"
 
+	"github.com/gorilla/websocket"
 	"github.com/schollz/progressbar/v3"
 )
 
 var config struct {
-	Server string `json:"server"`
-	Token  string `json:"token"`
-	Path   string `json:"path"`
+	Server  string   `json:"server"`
+	Token   string   `json:"token"`
+	Path    string   `json:"path"`
+	Exclude []string `json:"exclude"`
 }
 
 var cache []string
+var c *websocket.Conn
 
 func init() {
 	// Config
@@ -43,8 +44,15 @@ func init() {
 	if err != nil {
 		fmt.Println("Config Err:", err)
 	}
+	// WS
+	c, _, err = websocket.DefaultDialer.Dial(config.Server+"/uploads?token="+url.QueryEscape(config.Token), nil)
+	if err != nil {
+		log.Fatal("dial:", err)
+		return
+	}
 }
 
+// filter exist files
 func Arrcmp(src []string, dest []string) []string {
 	msrc := make(map[string]byte)
 	mall := make(map[string]byte)
@@ -73,40 +81,17 @@ func Arrcmp(src []string, dest []string) []string {
 	return added
 }
 
-func upload(path, filename string) bool {
-	bodyBuffer := &bytes.Buffer{}
-	bodyWriter := multipart.NewWriter(bodyBuffer)
-
-	fileWriter, _ := bodyWriter.CreateFormFile("files", filename)
-
-	file, _ := os.Open(path)
-	defer file.Close()
-
-	io.Copy(fileWriter, file)
-
-	contentType := bodyWriter.FormDataContentType()
-	bodyWriter.Close()
-
-	resp, err := http.Post(fmt.Sprintf("%s/backup?token=%s&name=%s", config.Server, url.QueryEscape(config.Token), url.QueryEscape(filename)), contentType, bodyBuffer)
-	if err != nil {
-		fmt.Println("Err", err)
-	}
-	defer resp.Body.Close()
-
-	resp_body, _ := io.ReadAll(resp.Body)
-
-	switch string(resp_body) {
-	case "ok":
-		return true
-	case "token":
-		fmt.Println("\nErr:", "Token Error")
-		os.Exit(1)
-	default:
-		fmt.Println("\nErr:", string(resp_body))
+// Is file exclude
+func isEx(name string) bool {
+	for _, j := range config.Exclude {
+		if strings.Contains(name, j) {
+			return true
+		}
 	}
 	return false
 }
 
+// Get All Files
 func GetAllFile(pathname string) ([]string, error) {
 	result := []string{}
 
@@ -118,6 +103,9 @@ func GetAllFile(pathname string) ([]string, error) {
 
 	for _, fi := range fis {
 		fullname := path.Join(pathname, fi.Name())
+		if isEx(fullname) {
+			continue
+		}
 		if fi.IsDir() {
 			temp, err := GetAllFile(fullname)
 			if err != nil {
@@ -133,7 +121,39 @@ func GetAllFile(pathname string) ([]string, error) {
 	return result, nil
 }
 
+// Bytes Combine
+func BytesCombine(pBytes ...[]byte) []byte {
+	var buffer bytes.Buffer
+	for index := 0; index < len(pBytes); index++ {
+		buffer.Write(pBytes[index])
+	}
+	return buffer.Bytes()
+}
+
+// Send File
+func flc(j string, bar *progressbar.ProgressBar) {
+	var filename [256]byte
+	for ii, jj := range j {
+		filename[ii] = byte(jj)
+	}
+
+	file, err := os.ReadFile(config.Path + j)
+	if err != nil {
+		log.Println(err)
+	}
+
+	err = c.WriteMessage(websocket.BinaryMessage, BytesCombine(filename[:], file))
+	if err != nil {
+		log.Println(err)
+		return
+	} else {
+		bar.Add(1)
+	}
+}
+
 func main() {
+	defer c.Close()
+
 	filelist, err := GetAllFile(config.Path)
 	if err != nil {
 		fmt.Println("Err:", err)
@@ -144,25 +164,25 @@ func main() {
 
 	bar := progressbar.Default(int64(len(filelistcmp)))
 
-	var flist []string
-	for _, j := range filelistcmp {
-		for i := 1; i < 3; i++ {
-			if upload(config.Path+j, j) {
-				bar.Add(1)
-				break
-			} else {
-				if i == 2 {
-					flist = append(flist, j)
-				}
+	index := 0
+	for {
+		if index < len(filelistcmp) {
+			flc(filelistcmp[index], bar)
+
+			_, msg, err := c.ReadMessage()
+			if err != nil {
+				log.Println("read:", err)
+				return
 			}
+			if string(msg) == "next" {
+				index++
+			} else {
+				break
+			}
+		} else {
+			break
 		}
 	}
-
-	fail := len(flist)
-	if fail != 0 {
-		fmt.Println("Err:", flist)
-	}
-	fmt.Printf("total: %d, success: %d, fail: %d", len(filelist), len(filelistcmp)-fail, fail)
 
 	file, err := os.OpenFile("./cache.json", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
