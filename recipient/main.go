@@ -43,6 +43,20 @@ func GetValidByte(src []byte) []byte {
 	return str_buf
 }
 
+func writeFile(filename string, data []byte) {
+	for {
+		dst, err := os.Create(path.Join("./backup/", filename))
+		if err != nil {
+			namepath := strings.Split(filename, "/")
+			os.MkdirAll(path.Join("./backup/", strings.Join(namepath[:len(namepath)-1], "/")), os.ModePerm)
+			continue
+		}
+		defer dst.Close()
+		io.Copy(dst, bytes.NewReader(data))
+		break
+	}
+}
+
 func main() {
 	upgrader := &websocket.Upgrader{}
 	http.HandleFunc("/uploads", func(w http.ResponseWriter, r *http.Request) {
@@ -64,18 +78,7 @@ func main() {
 
 			filename := string(GetValidByte(msg[:256]))
 
-			for {
-				dst, err := os.Create(path.Join("./backup/", filename))
-				if err != nil {
-					fmt.Println(err)
-					namepath := strings.Split(filename, "/")
-					os.MkdirAll(path.Join("./backup/", strings.Join(namepath[:len(namepath)-1], "/")), os.ModePerm)
-					continue
-				}
-				defer dst.Close()
-				io.Copy(dst, bytes.NewReader(msg[256:]))
-				break
-			}
+			writeFile(filename, msg[256:])
 
 			err = c.WriteMessage(mtype, []byte("next"))
 			if err != nil {
