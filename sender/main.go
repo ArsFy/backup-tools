@@ -142,7 +142,23 @@ func flc(j string, bar *progressbar.ProgressBar) {
 		log.Println(err)
 	}
 
-	err = c.WriteMessage(websocket.BinaryMessage, BytesCombine(filename[:], file))
+	err = c.WriteMessage(websocket.BinaryMessage, BytesCombine([]byte("1"), filename[:], file))
+	if err != nil {
+		log.Println(err)
+		return
+	} else {
+		bar.Add(1)
+	}
+}
+
+// Del File
+func fld(j string, bar *progressbar.ProgressBar) {
+	var filename [256]byte
+	for ii, jj := range j {
+		filename[ii] = byte(jj)
+	}
+
+	err := c.WriteMessage(websocket.BinaryMessage, BytesCombine([]byte("0"), filename[:]))
 	if err != nil {
 		log.Println(err)
 		return
@@ -160,14 +176,36 @@ func main() {
 		return
 	}
 
+	delfilelist := Arrcmp(filelist, cache)
 	filelistcmp := Arrcmp(cache, filelist)
 
-	bar := progressbar.Default(int64(len(filelistcmp)))
+	bar1 := progressbar.Default(int64(len(delfilelist)))
+	bar2 := progressbar.Default(int64(len(filelistcmp)))
 
 	index := 0
 	for {
+		if index < len(delfilelist) {
+			fld(delfilelist[index], bar1)
+
+			_, msg, err := c.ReadMessage()
+			if err != nil {
+				log.Println("read:", err)
+				return
+			}
+			if string(msg) == "next" {
+				index++
+			} else {
+				break
+			}
+		} else {
+			break
+		}
+	}
+
+	index = 0
+	for {
 		if index < len(filelistcmp) {
-			flc(filelistcmp[index], bar)
+			flc(filelistcmp[index], bar2)
 
 			_, msg, err := c.ReadMessage()
 			if err != nil {

@@ -1,7 +1,7 @@
 {
     "server": "ws://127.0.0.1:26543",
     "token": "123456",
-    "path": "/xx/xxx",
+    "path": "/xxx/xxxx",
     "exclude": [
         "/image",
         "/test"

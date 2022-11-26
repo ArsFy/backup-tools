@@ -47,8 +47,10 @@ Run
 
 ```js
 {
-    "port": 26543,     // Server Port
-    "token": "123456"  // Token (consistent with sender)
+    "host": "0.0.0.0",  // Server Path
+    "port": 26543,      // Server Port
+    "token": "123456",  // Token (consistent with sender)
+    "path": "./backup/" // Save path
 }
 ```
 

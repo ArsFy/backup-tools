@@ -15,11 +15,15 @@ import (
 )
 
 var config = struct {
+	Host  string `json:"host"`
 	Port  int    `json:"port"`
 	Token string `json:"token"`
+	Path  string `json:"path"`
 }{
+	Host:  "0.0.0.0",
 	Port:  26543,
 	Token: "",
+	Path:  "./backup/",
 }
 
 func init() {
@@ -45,10 +49,10 @@ func GetValidByte(src []byte) []byte {
 
 func writeFile(filename string, data []byte) {
 	for {
-		dst, err := os.Create(path.Join("./backup/", filename))
+		dst, err := os.Create(path.Join(config.Path, filename))
 		if err != nil {
 			namepath := strings.Split(filename, "/")
-			os.MkdirAll(path.Join("./backup/", strings.Join(namepath[:len(namepath)-1], "/")), os.ModePerm)
+			os.MkdirAll(path.Join(config.Path, strings.Join(namepath[:len(namepath)-1], "/")), os.ModePerm)
 			continue
 		}
 		defer dst.Close()
@@ -72,13 +76,24 @@ func main() {
 		for {
 			mtype, msg, err := c.ReadMessage()
 			if err != nil {
-				log.Println(err)
+				if err.Error() != "websocket: close 1006 (abnormal closure): unexpected EOF" {
+					log.Println(err)
+				} else {
+					log.Println(r.RemoteAddr, "WebSocket Close")
+				}
 				break
 			}
 
-			filename := string(GetValidByte(msg[:256]))
+			isWrite := string(GetValidByte(msg[0:1])) == "1"
+			filename := string(GetValidByte(msg[1:257]))
 
-			writeFile(filename, msg[256:])
+			fmt.Println(isWrite, filename)
+
+			if isWrite {
+				writeFile(filename, msg[257:])
+			} else {
+				os.Remove(path.Join(config.Path, filename))
+			}
 
 			err = c.WriteMessage(mtype, []byte("next"))
 			if err != nil {
@@ -87,6 +102,6 @@ func main() {
 			}
 		}
 	})
-	log.Printf("Starting Server: 0.0.0.0:%d\n", config.Port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", config.Port), nil))
+	log.Printf("Starting Server: %s:%d\n", config.Host, config.Port)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", config.Host, config.Port), nil))
 }
