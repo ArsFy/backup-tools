@@ -30,11 +30,15 @@ func init() {
 	file, err := os.ReadFile("./config.json")
 	if err != nil {
 		fmt.Println("Config Err:", err)
+		os.Exit(1)
 	}
 	err = json.Unmarshal(file, &config)
 	if err != nil {
 		fmt.Println("Config Err:", err)
+		os.Exit(1)
 	}
+
+	os.MkdirAll(path.Join(config.Path, "remove"), os.ModePerm)
 }
 
 func GetValidByte(src []byte) []byte {
@@ -92,7 +96,11 @@ func main() {
 			if isWrite {
 				writeFile(filename, msg[257:])
 			} else {
-				os.Remove(path.Join(config.Path, filename))
+				// os.Remove(path.Join(config.Path, filename))
+				rlist := strings.Split(filename, "/")
+				rpath := strings.Join(rlist[:len(rlist)-1], "/")
+				os.MkdirAll(path.Join(config.Path, "remove", rpath), os.ModePerm)
+				os.Rename(path.Join(config.Path, filename), path.Join(config.Path, "remove", filename))
 			}
 
 			err = c.WriteMessage(mtype, []byte("next"))
