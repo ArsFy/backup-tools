@@ -167,6 +167,22 @@ func fld(j string, bar *progressbar.ProgressBar) {
 	}
 }
 
+func removeElement(arr []string, val string) []string {
+	freq := make(map[string]int)
+	for _, s := range arr {
+		freq[s]++
+	}
+	res := make([]string, 0, len(arr))
+	for _, s := range arr {
+		if s != val {
+			res = append(res, s)
+		} else if freq[s] > 1 {
+			freq[s]--
+		}
+	}
+	return res
+}
+
 func main() {
 	defer c.Close()
 
@@ -193,6 +209,8 @@ func main() {
 				return
 			}
 			if string(msg) == "next" {
+				cache = removeElement(cache, delfilelist[index])
+				writeCacheFile(cache)
 				index++
 			} else {
 				break
@@ -213,6 +231,8 @@ func main() {
 				return
 			}
 			if string(msg) == "next" {
+				cache = append(cache, filelistcmp[index])
+				writeCacheFile(cache)
 				index++
 			} else {
 				break
@@ -221,7 +241,9 @@ func main() {
 			break
 		}
 	}
+}
 
+func writeCacheFile(filelist []string) {
 	file, err := os.OpenFile("./cache.json", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		fmt.Println("File Open Error", err)
